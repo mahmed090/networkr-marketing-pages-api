@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as sgMail from '@sendgrid/mail';
 import * as geoip from 'geoip-lite';
+// @sendgrid/mail: CJS has setApiKey on root; ESM/bundled (e.g. Vercel) may expose it on .default
+import * as sgMailNs from '@sendgrid/mail';
+const sgMail = (sgMailNs as { default?: typeof sgMailNs }).default ?? sgMailNs;
 import { ContactDto } from './dto/contact.dto';
 import { ContactContext } from './contact-context';
 import { GoogleSheetsService } from './google-sheets.service';
