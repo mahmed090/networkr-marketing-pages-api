@@ -18,8 +18,10 @@ export class GoogleSheetsService {
   private initPromise: Promise<sheets_v4.Sheets> | null = null;
 
   constructor(private readonly config: ConfigService) {
-    this.spreadsheetId = this.config.get<string>('GOOGLE_SHEETS_SPREADSHEET_ID') ?? null;
-    this.sheetName = this.config.get<string>('GOOGLE_SHEETS_SHEET_NAME') ?? 'Contact Form';
+    this.spreadsheetId =
+      this.config.get<string>('GOOGLE_SHEETS_SPREADSHEET_ID') ?? null;
+    this.sheetName =
+      this.config.get<string>('GOOGLE_SHEETS_SHEET_NAME') ?? 'Contact Form';
   }
 
   /** True if spreadsheet ID and credentials are configured */
@@ -27,19 +29,38 @@ export class GoogleSheetsService {
     return !!this.spreadsheetId && !!this.getCredentials();
   }
 
-  /** Use only GOOGLE_SERVICE_ACCOUNT_JSON from env (entire JSON on one line in .env). */
+  /** Use GOOGLE_SERVICE_ACCOUNT_JSON from env (one line) or GOOGLE_APPLICATION_CREDENTIALS file path. */
   private getCredentials(): string | object | null {
     const json = this.config.get<string>('GOOGLE_SERVICE_ACCOUNT_JSON');
-    if (!json || !json.trim()) return null;
-    const trimmed = json.trim();
+    if (json != null && json.trim() !== '') {
+      const parsed = this.parseCredentialsJson(json.trim());
+      if (parsed) return parsed;
+    }
+    const keyFilePath = this.config.get<string>('GOOGLE_APPLICATION_CREDENTIALS');
+    if (keyFilePath?.trim()) return keyFilePath.trim();
+    return null;
+  }
+
+  private parseCredentialsJson(trimmed: string): Record<string, unknown> | null {
     try {
-      return JSON.parse(trimmed) as object;
+      const credentials = JSON.parse(trimmed) as Record<string, unknown>;
+      if (credentials && typeof credentials.private_key === 'string') {
+        credentials.private_key = this.normalizePemPrivateKey(
+          credentials.private_key,
+        );
+      }
+      return credentials;
     } catch {
-      console.error(
-        '[GoogleSheets] GOOGLE_SERVICE_ACCOUNT_JSON must be the entire JSON on a single line in .env (dotenv does not support multi-line values).',
-      );
       return null;
     }
+  }
+
+  /** PEM decoder requires real Unix newlines; fix literal \\n and Windows line endings. */
+  private normalizePemPrivateKey(key: string): string {
+    return key
+      .replace(/\\n/g, '\n')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n');
   }
 
   private async getSheetsClient(): Promise<sheets_v4.Sheets> {
@@ -67,7 +88,10 @@ export class GoogleSheetsService {
    * Append one contact submission as a row.
    * Columns: Date and Time, Name, Email, Phone, Subject, Page Name, IP, City, Country, Timezone
    */
-  async appendContact(dto: ContactDto, ctx?: AppendContactContext): Promise<void> {
+  async appendContact(
+    dto: ContactDto,
+    ctx?: AppendContactContext,
+  ): Promise<void> {
     if (!this.spreadsheetId || !this.isConfigured()) return;
 
     const sheets = await this.getSheetsClient();
