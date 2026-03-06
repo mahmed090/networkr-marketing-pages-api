@@ -42,9 +42,6 @@ lerna-debug.log*
 .env.production.local
 .env.local
 
-# Secrets (never commit service account keys)
-/src/config/*.json
-
 # temp directory
 .temp
 .tmp
