@@ -27,14 +27,17 @@ export class GoogleSheetsService {
     return !!this.spreadsheetId && !!this.getCredentials();
   }
 
+  /** Use only GOOGLE_SERVICE_ACCOUNT_JSON from env (entire JSON on one line in .env). */
   private getCredentials(): string | object | null {
-    const path = this.config.get<string>('GOOGLE_APPLICATION_CREDENTIALS');
-    if (path) return path;
     const json = this.config.get<string>('GOOGLE_SERVICE_ACCOUNT_JSON');
-    if (!json) return null;
+    if (!json || !json.trim()) return null;
+    const trimmed = json.trim();
     try {
-      return JSON.parse(json) as object;
+      return JSON.parse(trimmed) as object;
     } catch {
+      console.error(
+        '[GoogleSheets] GOOGLE_SERVICE_ACCOUNT_JSON must be the entire JSON on a single line in .env (dotenv does not support multi-line values).',
+      );
       return null;
     }
   }
